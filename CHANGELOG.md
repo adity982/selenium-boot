@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Unreleased
 
+- **Bounded failure detail record** — every failed test now exports one optional-field `failureDetail` object with the failing locator, top application frame, last successful step, page URL/title, heal events, console errors, retry/history status, and representative same-cause context. The HTML failure panel and opt-in AI prompt reuse this record; raw errors and stack traces remain available. Text/list/URL limits and the exact AI data disclosure are documented. (#142)
+
 - **`flakiness.historyDir` / `-Dseleniumboot.history.dir`** — metrics history can now live outside `target/`. Builds that clean `target/` or discard the CI workspace between runs had no history, so the Flakiness Radar and the newly/consistently-failing and intermittent statuses stayed empty. Point it at a directory your CI restores and saves (a cache or artifact store); the system property wins over the config. Default unchanged: `<reports dir>/metrics-history`. (#141)
 
 - **Retry- and history-aware test status** — each test now gets a status from this run's retries and the earlier runs in `target/metrics-history/`: **Passed on retry**, **Newly failing** (passed in every earlier run in the window), **Consistently failing** (failed in the two or more earlier runs) or **Intermittent** (mixed earlier results). A "Test status" card sits next to the Flakiness Radar, the status shows in the failure detail, and newly failing tests are listed first in the Failures tab. The metrics JSON gains `testStatus`. Radar thresholds and `failOnHighFlakiness` are unchanged. (#141)

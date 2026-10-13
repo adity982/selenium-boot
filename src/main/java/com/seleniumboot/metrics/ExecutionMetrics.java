@@ -113,6 +113,28 @@ public final class ExecutionMetrics {
         TIMINGS.computeIfPresent(testId, (k, v) -> { v.incrementHealed(); return v; });
     }
 
+    public static void recordFailingLocator(String testId, String locator) {
+        if (testId == null || locator == null) return;
+        TIMINGS.computeIfAbsent(testId,
+                id -> new TestTiming(id, Thread.currentThread().getName()))
+               .setFailingLocator(locator);
+    }
+
+    public static void recordPageContext(String testId, String pageUrl, String pageTitle) {
+        if (testId == null) return;
+        TestTiming timing = TIMINGS.computeIfAbsent(testId,
+                id -> new TestTiming(id, Thread.currentThread().getName()));
+        if (pageUrl != null) timing.setPageUrl(pageUrl);
+        if (pageTitle != null) timing.setPageTitle(pageTitle);
+    }
+
+    public static void recordConsoleErrors(String testId, List<String> errors) {
+        if (testId == null || errors == null || errors.isEmpty()) return;
+        TIMINGS.computeIfAbsent(testId,
+                id -> new TestTiming(id, Thread.currentThread().getName()))
+               .setConsoleErrors(errors);
+    }
+
     public static void recordAiAnalysis(String testId, String analysis) {
         if (analysis == null) return;
         TIMINGS.computeIfPresent(testId, (k, v) -> { v.setAiAnalysis(analysis); return v; });
@@ -280,6 +302,39 @@ public final class ExecutionMetrics {
         }
     }
 
+    /** Builds the same bounded record used by metrics, the report, and optional AI analysis. */
+    public static com.seleniumboot.failure.FailureDetail buildFailureDetail(String testId) {
+        TestTiming timing = TIMINGS.get(testId);
+        if (timing == null) {
+            return com.seleniumboot.failure.FailureDetail.from(null, null, 0, null);
+        }
+        return buildFailureDetail(timing, testStatuses().get(testId), failureGroups());
+    }
+
+    private static Map<String, List<TestTiming>> failureGroups() {
+        Map<String, List<TestTiming>> groups = new LinkedHashMap<>();
+        for (TestTiming timing : TIMINGS.values()) {
+            if (!"FAILED".equals(timing.getStatus())) continue;
+            String signature = com.seleniumboot.failure.FailureSignature.of(timing);
+            groups.computeIfAbsent(signature, ignored -> new ArrayList<>()).add(timing);
+        }
+        return groups;
+    }
+
+    private static com.seleniumboot.failure.FailureDetail buildFailureDetail(
+            TestTiming timing,
+            com.seleniumboot.flakiness.TestStatus status,
+            Map<String, List<TestTiming>> groups) {
+        String signature = com.seleniumboot.failure.FailureSignature.of(timing);
+        List<TestTiming> group = groups.getOrDefault(signature, List.of(timing));
+        TestTiming representative = group.stream()
+                .filter(candidate -> candidate.getScreenshotPath() != null || candidate.getTracePath() != null)
+                .findFirst()
+                .orElse(group.get(0));
+        return com.seleniumboot.failure.FailureDetail.from(
+                timing, status, group.size(), representative);
+    }
+
     public static void exportToJson() {
 
         Map<String, Object> report = new LinkedHashMap<>();
@@ -341,6 +396,7 @@ public final class ExecutionMetrics {
         List<Map<String, Object>> testList = new ArrayList<>();
 
         Map<String, com.seleniumboot.flakiness.TestStatus> testStatuses = testStatuses();
+        Map<String, List<TestTiming>> failureGroups = failureGroups();
 
         for (TestTiming timing : TIMINGS.values()) {
 
@@ -376,7 +432,11 @@ public final class ExecutionMetrics {
                         com.seleniumboot.failure.FailureClassifier.classify(timing);
                 testEntry.put("failureCategory", failure.category().name());
                 testEntry.put("failureEvidence", failure.evidence());
-                testEntry.put("failureSignature", com.seleniumboot.failure.FailureSignature.of(timing));
+                String signature = com.seleniumboot.failure.FailureSignature.of(timing);
+                testEntry.put("failureSignature", signature);
+                com.seleniumboot.failure.FailureDetail detail =
+                        buildFailureDetail(timing, testStatus, failureGroups);
+                testEntry.put("failureDetail", detail.toMap());
             }
             if (timing.getBrowser() != null) {
                 testEntry.put("browser", timing.getBrowser());

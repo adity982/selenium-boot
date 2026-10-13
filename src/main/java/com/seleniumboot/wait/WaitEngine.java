@@ -51,6 +51,7 @@ public final class WaitEngine {
         } catch (TimeoutException | NoSuchElementException e) {
             WebElement healed = tryHeal(locator);
             if (healed != null) return healed;
+            recordFailedLocator(locator);
             throw e;
         }
     }
@@ -70,6 +71,7 @@ public final class WaitEngine {
         } catch (TimeoutException | NoSuchElementException e) {
             WebElement healed = tryHeal(locator);
             if (healed != null) return healed;
+            recordFailedLocator(locator);
             throw e;
         }
     }
@@ -331,5 +333,10 @@ public final class WaitEngine {
             ExecutionMetrics.recordHeal(testId);
         }
         return healed;
+    }
+
+    private static void recordFailedLocator(By locator) {
+        ExecutionMetrics.recordFailingLocator(
+                SeleniumBootContext.getCurrentTestId(), locator != null ? locator.toString() : null);
     }
 }

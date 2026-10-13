@@ -339,7 +339,8 @@ public final class HtmlReportGenerator {
 
         String stepsHtml   = buildStepTimeline(test);
         boolean hasDetail  = errorMsg != null || stackTrace != null || test.has("failureCategory") || !stepsHtml.isEmpty()
-                             || recordingPath != null || aiAnalysis != null || perfNode != null || test.has("testStatus");
+                             || recordingPath != null || aiAnalysis != null || perfNode != null || test.has("testStatus")
+                             || test.has("failureDetail");
         String detailRow   = "";
         if (hasDetail) {
             String whyHtml       = buildTestStatusBadge(test)
@@ -351,6 +352,7 @@ public final class HtmlReportGenerator {
             String sessionLink   = sessionUrl    != null ? buildSessionLink(sessionUrl) : "";
             String aiHtml        = aiAnalysis    != null ? buildAiAnalysisPanel(aiAnalysis) : "";
             String perfHtml      = perfNode      != null ? buildPerformancePanel(perfNode) : "";
+            String failureDetail = test.has("failureDetail") ? buildFailureDetailPanel(test.get("failureDetail")) : "";
             String stepsSection = !stepsHtml.isEmpty()
                     ? "<div class=\"step-timeline-section\"><div class=\"step-timeline-header\">Steps (" + test.get("steps").size() + ")</div>"
                       + "<div class=\"step-timeline\">" + stepsHtml + "</div></div>"
@@ -358,7 +360,7 @@ public final class HtmlReportGenerator {
             String detailDisplay = collapsed ? " style=\"display:none\"" : "";
             detailRow = "<tr class=\"detail-row group-member\" data-group=\"" + groupKey + "\" id=\"detail-" + rowIndex + "\"" + detailDisplay + ">"
                     + "<td colspan=\"" + colspan + "\"><div class=\"detail-panel\">"
-                    + perfHtml + sessionLink + traceLink + stepsSection + recordingHtml + aiHtml + errorHtml + traceHtml
+                    + failureDetail + perfHtml + sessionLink + traceLink + stepsSection + recordingHtml + aiHtml + errorHtml + traceHtml
                     + "</div></td>"
                     + "</tr>";
         }
@@ -399,6 +401,65 @@ public final class HtmlReportGenerator {
         String evidence = test.has("failureEvidence") ? test.get("failureEvidence").asText() : "";
         return "<div class=\"failure-why\"><span class=\"failure-badge\">" + escapeHtml(label) + "</span>"
                 + escapeHtml(evidence) + "</div>";
+    }
+
+    private static String buildFailureDetailPanel(JsonNode detail) {
+        if (detail == null || detail.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder("<div class=\"failure-detail-section\">"
+                + "<div class=\"step-timeline-header\">Failure detail</div><ul>");
+        detailItem(sb, "Failing locator", detail, "failingLocator");
+        detailItem(sb, "Application frame", detail, "applicationFrame");
+        detailItem(sb, "Last successful step", detail, "lastSuccessfulStep");
+        detailItem(sb, "Page URL", detail, "pageUrl");
+        detailItem(sb, "Page title", detail, "pageTitle");
+        detailItem(sb, "Test status", detail, "testStatus");
+        sb.append("</ul>");
+
+        if (detail.has("healEvents") && detail.get("healEvents").size() > 0) {
+            sb.append("<div class=\"step-timeline-header\">Self-healing events</div><ul>");
+            for (JsonNode event : detail.get("healEvents")) {
+                sb.append("<li>").append(escapeHtml(safeStr(event, "originalLocator")))
+                  .append(" &rarr; ").append(escapeHtml(safeStr(event, "healedLocator")));
+                if (event.has("strategy")) {
+                    sb.append(" (").append(escapeHtml(event.get("strategy").asText())).append(")");
+                }
+                sb.append("</li>");
+            }
+            sb.append("</ul>");
+        }
+
+        if (detail.has("consoleErrors") && detail.get("consoleErrors").size() > 0) {
+            sb.append("<div class=\"step-timeline-header\">Console errors</div><ul>");
+            for (JsonNode error : detail.get("consoleErrors")) {
+                sb.append("<li>").append(escapeHtml(error.asText())).append("</li>");
+            }
+            sb.append("</ul>");
+        }
+
+        if (detail.has("groupContext")) {
+            JsonNode group = detail.get("groupContext");
+            sb.append("<div class=\"step-timeline-header\">Same-cause group</div><ul>");
+            if (group.has("size")) sb.append("<li>Size: ").append(group.get("size").asInt()).append("</li>");
+            detailItem(sb, "Representative", group, "representativeTest");
+            sb.append("</ul>");
+            if (group.has("representativeScreenshot")) {
+                com.fasterxml.jackson.databind.node.ObjectNode screenshot =
+                        com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+                screenshot.put("screenshotPath", group.get("representativeScreenshot").asText());
+                sb.append(buildScreenshotCell(screenshot));
+            }
+            if (group.has("representativeTrace")) {
+                sb.append(buildTraceLink(group.get("representativeTrace").asText()));
+            }
+        }
+
+        return sb.append("</div>").toString();
+    }
+
+    private static void detailItem(StringBuilder html, String label, JsonNode node, String field) {
+        if (!node.has(field)) return;
+        html.append("<li><strong>").append(label).append(":</strong> ")
+            .append(escapeHtml(node.get(field).asText())).append("</li>");
     }
 
     private static String testStatusOf(JsonNode test) {

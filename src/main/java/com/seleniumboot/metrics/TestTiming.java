@@ -100,6 +100,27 @@ public class TestTiming {
     public String getTracePath() { return tracePath; }
     public void setTracePath(String tracePath) { this.tracePath = tracePath; }
 
+    private String failingLocator;
+    public String getFailingLocator() { return failingLocator; }
+    public void setFailingLocator(String failingLocator) { this.failingLocator = failingLocator; }
+
+    private String pageUrl;
+    private String pageTitle;
+    public String getPageUrl() { return pageUrl; }
+    public void setPageUrl(String pageUrl) { this.pageUrl = pageUrl; }
+    public String getPageTitle() { return pageTitle; }
+    public void setPageTitle(String pageTitle) { this.pageTitle = pageTitle; }
+
+    private final java.util.List<String> consoleErrors =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+    public void setConsoleErrors(java.util.List<String> values) {
+        consoleErrors.clear();
+        if (values != null) consoleErrors.addAll(values);
+    }
+    public java.util.List<String> getConsoleErrors() {
+        return java.util.Collections.unmodifiableList(consoleErrors);
+    }
+
     private int healedCount;
     public int  getHealedCount()  { return healedCount; }
     public void incrementHealed() { this.healedCount++; }

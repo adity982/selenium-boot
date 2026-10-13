@@ -108,6 +108,7 @@ public final class TestExecutionListener implements ITestListener {
 
         if (!skipBrowser(result) && ConsoleErrorCollector.isEnabled()) {
             List<String> errors = ConsoleErrorCollector.collect();
+            ExecutionMetrics.recordConsoleErrors(testId, errors);
             errors.forEach(e -> StepLogger.step("[JS Error] " + e, StepStatus.WARN));
             jsErrorsLogged.set(true);
 
@@ -171,10 +172,13 @@ public final class TestExecutionListener implements ITestListener {
         String testId = result.getMethod().getQualifiedName();
 
         if (!skipBrowser(result) && ConsoleErrorCollector.isEnabled() && !jsErrorsLogged.get()) {
-            ConsoleErrorCollector.collect().forEach(e -> StepLogger.step("[JS Error] " + e, StepStatus.WARN));
+            List<String> consoleErrors = ConsoleErrorCollector.collect();
+            ExecutionMetrics.recordConsoleErrors(testId, consoleErrors);
+            consoleErrors.forEach(e -> StepLogger.step("[JS Error] " + e, StepStatus.WARN));
         }
         jsErrorsLogged.set(false);
 
+        String[] pageContext = capturePageContext(testId);
         String recordingPath = skipBrowser(result) ? null : RecordingManager.saveOnFailure(testId);
         ExecutionMetrics.recordRecording(testId, recordingPath);
         ExecutionMetrics.recordStatus(testId, "FAILED");
@@ -183,13 +187,13 @@ public final class TestExecutionListener implements ITestListener {
             ExecutionMetrics.recordError(testId, result.getThrowable());
         }
         saveTraceIfEnabled(testId, result.getMethod().getMethodName(), false);
-        runAiAnalysisIfEnabled(testId);
+        String screenshotPath = skipBrowser(result) ? null : ScreenshotManager.capture(testName);
+        ExecutionMetrics.recordScreenshot(testId, screenshotPath);
+        runAiAnalysisIfEnabled(testId, pageContext[0], pageContext[1]);
         HookRegistry.onTestFailure(testId, result.getThrowable());
         String failureComment = result.getThrowable() != null ? result.getThrowable().getMessage() : null;
         TestManagementReporter.getInstance().onTestResult(
                 result.getMethod().getConstructorOrMethod().getMethod(), "FAILED", failureComment);
-        String screenshotPath = skipBrowser(result) ? null : ScreenshotManager.capture(testName);
-        ExecutionMetrics.recordScreenshot(testId, screenshotPath);
         TestClock.autoReset();
         if (!skipBrowser(result) && DriverManager.shouldQuitAfterTest()) DriverManager.quitDriver();
         MultiSessionManager.clearAll();
@@ -367,17 +371,22 @@ public final class TestExecutionListener implements ITestListener {
         } catch (Exception ignored) {}
     }
 
-    private void runAiAnalysisIfEnabled(String testId) {
+    private String[] capturePageContext(String testId) {
+        String pageUrl = null;
+        String pageTitle = null;
         try {
-            String pageUrl   = null;
-            String pageTitle = null;
-            try {
-                org.openqa.selenium.WebDriver driver = DriverManager.getDriver();
-                if (driver != null) {
-                    pageUrl   = driver.getCurrentUrl();
-                    pageTitle = driver.getTitle();
-                }
-            } catch (Exception ignored) {}
+            org.openqa.selenium.WebDriver driver = DriverManager.getDriver();
+            if (driver != null) {
+                pageUrl = driver.getCurrentUrl();
+                pageTitle = driver.getTitle();
+            }
+        } catch (Exception ignored) {}
+        ExecutionMetrics.recordPageContext(testId, pageUrl, pageTitle);
+        return new String[]{pageUrl, pageTitle};
+    }
+
+    private void runAiAnalysisIfEnabled(String testId, String pageUrl, String pageTitle) {
+        try {
             AiFailureAnalyzer.analyze(testId, pageUrl, pageTitle);
         } catch (Exception ignored) {}
     }

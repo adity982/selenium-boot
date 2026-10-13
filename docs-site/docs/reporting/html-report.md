@@ -78,6 +78,27 @@ The category is also written to the metrics JSON as `failureCategory` and `failu
 
 ---
 
+### Failure detail record
+
+Each failed test also gets one bounded `failureDetail` record in `selenium-boot-metrics.json`. The HTML failure panel and optional AI analyzer use that same record, so they do not drift apart. Fields are omitted when the data is unavailable and long values are truncated: text fields and individual list entries to 500 characters, URLs to 2,048 characters, and console/heal lists to 10 entries.
+
+When available, the record contains:
+
+- the failing locator, top application stack frame, and last successful `PASS` step;
+- the page URL and title captured at failure time;
+- self-healing events with original locator, healed locator, and strategy;
+- browser console errors;
+- retry/history `testStatus`; and
+- same-cause group size plus a representative test and its screenshot/trace paths.
+
+The raw error and full stack trace remain directly below the record in the expanded failure panel.
+
+#### Data sent for AI failure analysis
+
+`ai.failureAnalysis` remains opt-in, bounded by `ai.timeoutSeconds`, and unable to change the suite result. When enabled, the request contains the bounded failure detail above, the rule-based failure category and evidence, the error message, the first 30 stack-trace lines, and the recorded step timeline. This can include application URLs, page titles, locator text, console output, test/class names, and artifact paths. It does not send screenshot or trace file contents. Tests in the same-cause group continue to reuse one analysis.
+
+---
+
 ### Same-cause groups
 
 When two or more failures share a cause, the Failures tab lists them above the flat list as "N tests, same cause", largest group first, so one outage does not read as forty problems. Tests are grouped by a signature made of the failure category, the exception type, the first line of the message with ids, numbers and quoted values replaced by placeholders, and the top application stack frame (class and method, not line number). The flat list below still shows every failure. With `ai.failureAnalysis` on, one API call is made per group and the other tests in it reuse that analysis.

@@ -38,6 +38,10 @@ public final class HealLog {
         return (int) EVENTS.stream().filter(e -> testId.equals(e.getTestId())).count();
     }
 
+    public static List<HealEvent> getForTest(String testId) {
+        return EVENTS.stream().filter(e -> testId.equals(e.getTestId())).toList();
+    }
+
     public static void clear() {
         EVENTS.clear();
     }

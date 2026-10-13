@@ -4,6 +4,7 @@ import com.seleniumboot.api.SeleniumBootApi;
 import com.seleniumboot.config.SeleniumBootConfig;
 import com.seleniumboot.driver.DriverManager;
 import com.seleniumboot.internal.SeleniumBootContext;
+import com.seleniumboot.metrics.ExecutionMetrics;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
@@ -892,6 +893,8 @@ public final class Locator {
                         return Boolean.TRUE;
                     });
         } catch (TimeoutException e) {
+            ExecutionMetrics.recordFailingLocator(
+                    SeleniumBootContext.getCurrentTestId(), describe());
             // A locator that never matched still surfaces as LocatorException, as it did before
             // the wait existed, so callers catching it keep working.
             if (e.getCause() instanceof LocatorException le) {

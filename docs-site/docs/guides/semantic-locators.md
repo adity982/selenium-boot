@@ -28,7 +28,9 @@ Auto-waiting covers the element *existing* as well as being visible: an action s
 `type()` keeps looking for the element until `timeouts.explicit` elapses, and looks it up afresh each
 time, so a page that re-renders it mid-action doesn't cause a stale-element error. If it never
 appears you get a `LocatorException` after the timeout. `isVisible()`, `isHidden()`, `isEnabled()`,
-`isChecked()` and `count()` never wait.
+`isChecked()`, `count()`, and `allTextContents()` never wait. Use `waitFor(State)` (`VISIBLE`, `HIDDEN`,
+`ATTACHED`, `DETACHED`) to wait explicitly for a lifecycle state, and `screenshot()` / `screenshot(path)`
+to capture element PNG bytes or files.
 
 ---
 

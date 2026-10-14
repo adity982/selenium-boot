@@ -18,6 +18,12 @@ import org.testng.annotations.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import com.seleniumboot.locator.Role;
+import com.seleniumboot.locator.State;
+import org.openqa.selenium.OutputType;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -685,5 +691,185 @@ public class LocatorTest {
         when(mockDriver.findElements(By.id("email"))).thenReturn(List.of(el));
 
         assertEquals(Locator.of(By.id("email")).inputValue(), "");
+    }
+
+    // ------------------------------------------------------------------
+    // waitFor(State), allTextContents, and screenshot
+    // ------------------------------------------------------------------
+
+    @Test
+    public void waitFor_visible_succeedsWhenDisplayed() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(true);
+        when(mockDriver.findElements(By.id("toast"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("toast")).waitFor(State.VISIBLE);
+        // Completed without exception
+    }
+
+    @Test(expectedExceptions = LocatorException.class)
+    public void waitFor_visible_throwsWhenElementNeverAppears() {
+        when(mockDriver.findElements(By.id("missing"))).thenReturn(Collections.emptyList());
+
+        Locator.of(By.id("missing")).waitFor(State.VISIBLE);
+    }
+
+    @Test(expectedExceptions = LocatorException.class)
+    public void waitFor_visible_throwsWhenElementNotDisplayed() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(false);
+        when(mockDriver.findElements(By.id("hidden-box"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("hidden-box")).waitFor(State.VISIBLE);
+    }
+
+    @Test
+    public void waitFor_default_waitsForVisible() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(true);
+        when(mockDriver.findElements(By.id("toast"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("toast")).waitFor();
+    }
+
+    @Test
+    public void waitFor_hidden_succeedsWhenNotDisplayed() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(false);
+        when(mockDriver.findElements(By.id("spinner"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("spinner")).waitFor(State.HIDDEN);
+    }
+
+    @Test
+    public void waitFor_hidden_succeedsWhenNotInDom() {
+        when(mockDriver.findElements(By.id("spinner"))).thenReturn(Collections.emptyList());
+
+        Locator.of(By.id("spinner")).waitFor(State.HIDDEN);
+    }
+
+    @Test(expectedExceptions = LocatorException.class)
+    public void waitFor_hidden_throwsWhenElementRemainsVisible() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(true);
+        when(mockDriver.findElements(By.id("banner"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("banner")).waitFor(State.HIDDEN);
+    }
+
+    @Test
+    public void waitFor_attached_succeedsWhenInDomEvenIfHidden() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(false);
+        when(el.isEnabled()).thenReturn(true);
+        when(mockDriver.findElements(By.id("hidden-input"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("hidden-input")).waitFor(State.ATTACHED);
+    }
+
+    @Test(expectedExceptions = LocatorException.class)
+    public void waitFor_attached_throwsWhenElementNotInDom() {
+        when(mockDriver.findElements(By.id("missing"))).thenReturn(Collections.emptyList());
+
+        Locator.of(By.id("missing")).waitFor(State.ATTACHED);
+    }
+
+    @Test
+    public void waitFor_detached_succeedsWhenNotInDom() {
+        when(mockDriver.findElements(By.id("removed"))).thenReturn(Collections.emptyList());
+
+        Locator.of(By.id("removed")).waitFor(State.DETACHED);
+    }
+
+    @Test(expectedExceptions = LocatorException.class)
+    public void waitFor_detached_throwsWhenElementRemainsInDom() {
+        WebElement el = mock(WebElement.class);
+        when(el.isEnabled()).thenReturn(true);
+        when(mockDriver.findElements(By.id("present"))).thenReturn(List.of(el));
+
+        Locator.of(By.id("present")).waitFor(State.DETACHED);
+    }
+
+    @Test
+    public void allTextContents_returnsAllMatchesText() {
+        WebElement el1 = mock(WebElement.class);
+        when(el1.getText()).thenReturn(" Alpha ");
+        WebElement el2 = mock(WebElement.class);
+        when(el2.getText()).thenReturn("Beta");
+        WebElement el3 = mock(WebElement.class);
+        when(el3.getText()).thenReturn(" Gamma");
+
+        when(mockDriver.findElements(By.cssSelector(".item"))).thenReturn(List.of(el1, el2, el3));
+
+        List<String> texts = Locator.ofCss(".item").allTextContents();
+
+        assertEquals(texts, List.of("Alpha", "Beta", "Gamma"));
+    }
+
+    @Test
+    public void allTextContents_fallsBackToDomPropertyWhenGetTextEmpty() {
+        WebElement el1 = mock(WebElement.class);
+        when(el1.getText()).thenReturn("");
+        when(el1.getDomProperty("textContent")).thenReturn("Hidden Alpha");
+
+        when(mockDriver.findElements(By.cssSelector(".item"))).thenReturn(List.of(el1));
+
+        List<String> texts = Locator.ofCss(".item").allTextContents();
+
+        assertEquals(texts, List.of("Hidden Alpha"));
+    }
+
+    @Test
+    public void allTextContents_returnsEmptyListWhenNoMatches_noWait() {
+        when(mockDriver.findElements(By.cssSelector(".missing"))).thenReturn(Collections.emptyList());
+
+        List<String> texts = Locator.ofCss(".missing").allTextContents();
+
+        assertNotNull(texts);
+        assertTrue(texts.isEmpty());
+    }
+
+    @Test
+    public void screenshot_returnsPngBytes() {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(true);
+        byte[] expectedBytes = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47};
+        when(el.getScreenshotAs(OutputType.BYTES)).thenReturn(expectedBytes);
+
+        when(mockDriver.findElements(By.id("card"))).thenReturn(List.of(el));
+
+        byte[] bytes = Locator.of(By.id("card")).screenshot();
+
+        assertEquals(bytes, expectedBytes);
+        verify(el, times(1)).getScreenshotAs(OutputType.BYTES);
+    }
+
+    @Test
+    public void screenshot_writesToPath() throws IOException {
+        WebElement el = mock(WebElement.class);
+        when(el.isDisplayed()).thenReturn(true);
+        byte[] expectedBytes = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x01, 0x02};
+        when(el.getScreenshotAs(OutputType.BYTES)).thenReturn(expectedBytes);
+
+        when(mockDriver.findElements(By.id("card"))).thenReturn(List.of(el));
+
+        Path tempDir = Files.createTempDirectory("locator-screenshot-test");
+        Path subDir = tempDir.resolve("nested");
+        Path targetFile = subDir.resolve("element.png");
+        try {
+            Locator.of(By.id("card")).screenshot(targetFile);
+
+            assertTrue(Files.exists(targetFile));
+            assertEquals(Files.readAllBytes(targetFile), expectedBytes);
+        } finally {
+            Files.deleteIfExists(targetFile);
+            Files.deleteIfExists(subDir);
+            Files.deleteIfExists(tempDir);
+        }
+    }
+
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void screenshot_nullPath_throwsIllegalArgumentException() {
+        Locator.of(By.id("card")).screenshot(null);
     }
 }

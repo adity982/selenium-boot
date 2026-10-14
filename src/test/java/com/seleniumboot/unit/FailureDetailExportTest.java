@@ -2,6 +2,7 @@ package com.seleniumboot.unit;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.seleniumboot.locator.LocatorException;
 import com.seleniumboot.metrics.ExecutionMetrics;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
@@ -47,7 +48,7 @@ public class FailureDetailExportTest {
     private static void recordFailure(String testId, String screenshot, String trace) {
         ExecutionMetrics.markStart(testId);
         ExecutionMetrics.recordStatus(testId, "FAILED");
-        ExecutionMetrics.recordError(testId, new IllegalStateException("checkout failed"));
+        ExecutionMetrics.recordError(testId, new LocatorException("No element found for By.id: submit"));
         ExecutionMetrics.recordFailingLocator(testId, "By.id: submit");
         ExecutionMetrics.recordPageContext(testId, "https://app.example/checkout", "Checkout");
         ExecutionMetrics.recordConsoleErrors(testId, List.of("ReferenceError: submit is missing"));

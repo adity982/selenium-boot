@@ -90,7 +90,7 @@ public final class FailureDetail {
         }
 
         return new FailureDetail(
-                bounded(firstNonBlank(timing.getFailingLocator(), locatorFrom(timing.getErrorMessage())), MAX_TEXT_LENGTH),
+                bounded(failingLocator(timing), MAX_TEXT_LENGTH),
                 bounded(applicationFrame(timing.getStackTrace()), MAX_TEXT_LENGTH),
                 bounded(lastSuccessfulStep(timing.getSteps()), MAX_TEXT_LENGTH),
                 bounded(timing.getPageUrl(), MAX_URL_LENGTH),
@@ -99,6 +99,25 @@ public final class FailureDetail {
                 Collections.unmodifiableList(errors),
                 status != null ? status.name() : null,
                 Collections.unmodifiableMap(group));
+    }
+
+    private static String failingLocator(TestTiming timing) {
+        String finalErrorLocator = locatorFrom(timing.getErrorMessage());
+        if (finalErrorLocator != null && !finalErrorLocator.isBlank()) {
+            return finalErrorLocator;
+        }
+
+        FailureCategory category = FailureClassifier.classify(timing).category();
+        if (category != FailureCategory.LOCATOR_NOT_FOUND && category != FailureCategory.TIMEOUT) {
+            return null;
+        }
+        return hasLocatorWaitFrame(timing.getStackTrace()) ? timing.getFailingLocator() : null;
+    }
+
+    private static boolean hasLocatorWaitFrame(String stackTrace) {
+        if (stackTrace == null) return false;
+        return stackTrace.contains("com.seleniumboot.locator.Locator")
+                || stackTrace.contains("com.seleniumboot.wait.WaitEngine");
     }
 
     /** JSON-ready representation. Fields without data are deliberately absent. */
@@ -197,10 +216,6 @@ public final class FailureDetail {
             return end < 0 ? message.substring(start) : message.substring(start, end);
         }
         return null;
-    }
-
-    private static String firstNonBlank(String first, String second) {
-        return first != null && !first.isBlank() ? first : second;
     }
 
     private static String bounded(String value, int limit) {

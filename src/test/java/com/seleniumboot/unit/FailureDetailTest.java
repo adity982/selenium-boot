@@ -77,6 +77,33 @@ public class FailureDetailTest {
         Assert.assertFalse(detail.containsKey("testStatus"));
     }
 
+    @Test
+    public void caughtLocatorTimeoutDoesNotLabelLaterAssertion() {
+        TestTiming timing = new TestTiming("example.OptionalBannerTest.run", "main");
+        timing.setFailingLocator("By.id: optional-banner");
+        timing.setErrorMessage("expected [ready] but found [failed]");
+        timing.setStackTrace("java.lang.AssertionError: expected [ready] but found [failed]\n"
+                + "\tat example.OptionalBannerTest.run(OptionalBannerTest.java:42)\n");
+
+        Map<String, Object> detail = FailureDetail.from(timing, null, 1, timing).toMap();
+
+        Assert.assertFalse(detail.containsKey("failingLocator"));
+    }
+
+    @Test
+    public void recordedLocatorRemainsFallbackForFinalWaitTimeout() {
+        TestTiming timing = new TestTiming("example.CheckoutTest.submit", "main");
+        timing.setFailingLocator("By.cssSelector: #submit");
+        timing.setErrorMessage("Expected condition failed: element was not clickable");
+        timing.setStackTrace("org.openqa.selenium.TimeoutException: element was not clickable\n"
+                + "\tat com.seleniumboot.wait.WaitEngine.waitForClickable(WaitEngine.java:68)\n"
+                + "\tat example.CheckoutPage.submit(CheckoutPage.java:42)\n");
+
+        Map<String, Object> detail = FailureDetail.from(timing, null, 1, timing).toMap();
+
+        Assert.assertEquals(detail.get("failingLocator"), "By.cssSelector: #submit");
+    }
+
     private static TestTiming timing(String testId) {
         TestTiming timing = new TestTiming(testId, "main");
         timing.setFailingLocator("By.cssSelector: #submit");
